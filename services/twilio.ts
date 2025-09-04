@@ -1,5 +1,5 @@
 import { VoiceResponse } from 'twilio/lib/twiml/VoiceResponse';
-import { TwilioPayload } from '@/types/twilio';
+import { TwilioPayload } from '../types/twilio';
 
 export class TwilioService {
   static generateGreeting(): string {

@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { ClaudeResponse } from '@/types/claude';
+import { ClaudeResponse } from '../types/claude';
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,

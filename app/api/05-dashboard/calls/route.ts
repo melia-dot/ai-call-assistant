@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next';
-import { DatabaseService } from '@/services/database';
+import { DatabaseService } from '../../../../services/database';
 
 export async function GET(req: NextRequest) {
   try {

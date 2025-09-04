@@ -1,5 +1,5 @@
 import { neon } from '@neondatabase/serverless';
-import { CallLog, TwilioPayload } from '@/types/twilio';
+import { CallLog, TwilioPayload } from '../types/twilio';
 
 const sql = neon(process.env.DATABASE_URL!);
 

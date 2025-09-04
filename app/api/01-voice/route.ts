@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next';
 import { VoiceResponse } from 'twilio/lib/twiml/VoiceResponse';
-import { DatabaseService } from '@/services/database';
-import { TwilioService } from '@/services/twilio';
+import { DatabaseService } from '../../../services/database';
+import { TwilioService } from '../../../services/twilio';
 
 export async function POST(req: NextRequest) {
   try {
