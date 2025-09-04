@@ -1,26 +1,23 @@
-import { NextRequest, NextResponse } from 'next';
-import { DatabaseService } from '../../../services/database';
+import { NextRequest, NextResponse } from 'next/server';
+import { CallOrchestrator } from '../../../orchestrators/call-orchestrator';
+import { TwilioPayload } from '../../../types/twilio';
 
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
-    const callSid = formData.get('CallSid') as string;
-    const callStatus = formData.get('CallStatus') as string;
-    const callDuration = formData.get('CallDuration') as string;
-    const recordingUrl = formData.get('RecordingUrl') as string;
+    
+    const payload: TwilioPayload = {
+      CallSid: formData.get('CallSid') as string,
+      From: formData.get('From') as string,
+      To: formData.get('To') as string,
+      CallStatus: formData.get('CallStatus') as any,
+      CallDuration: formData.get('CallDuration') as string,
+      RecordingUrl: formData.get('RecordingUrl') as string
+    };
 
-    // Update call log with final status and duration
-    await DatabaseService.updateCall(callSid, {
-      status: callStatus,
-      duration: callDuration ? parseInt(callDuration) : undefined,
-      recordingUrl: recordingUrl || undefined,
-      outcome: callStatus === 'completed' ? 'completed' : 'failed'
-    });
-
-    console.log(`Call ${callSid} ended with status: ${callStatus}`);
-
-    // Return empty TwiML response
-    return new NextResponse('<Response></Response>', {
+    const twimlResponse = await CallOrchestrator.handleCallStatus(payload);
+    
+    return new NextResponse(twimlResponse, {
       headers: { 'Content-Type': 'text/xml' }
     });
 

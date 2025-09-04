@@ -1,39 +1,30 @@
-import { NextRequest, NextResponse } from 'next';
-import { VoiceResponse } from 'twilio/lib/twiml/VoiceResponse';
-import { DatabaseService } from '../../../services/database';
-import { TwilioService } from '../../../services/twilio';
+import { NextRequest, NextResponse } from 'next/server';
+import { CallOrchestrator } from '../../../orchestrators/call-orchestrator';
+import { TwilioPayload } from '../../../types/twilio';
 
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
-    const callSid = formData.get('CallSid') as string;
-    const from = formData.get('From') as string;
-    const to = formData.get('To') as string;
-
-    // Log incoming call to database
-    await DatabaseService.logCall({
-      callSid,
-      from,
-      to,
-      status: 'incoming',
-      timestamp: new Date()
-    });
-
-    // Generate greeting with compliance notice
-    const response = TwilioService.generateGreeting();
     
-    return new NextResponse(response, {
+    const payload: TwilioPayload = {
+      CallSid: formData.get('CallSid') as string,
+      From: formData.get('From') as string,
+      To: formData.get('To') as string,
+      CallStatus: formData.get('CallStatus') as any
+    };
+
+    const twimlResponse = await CallOrchestrator.handleIncomingCall(payload);
+    
+    return new NextResponse(twimlResponse, {
       headers: { 'Content-Type': 'text/xml' }
     });
+
   } catch (error) {
     console.error('Voice webhook error:', error);
     
-    // Fallback response
-    const resp = new VoiceResponse();
-    resp.say('Sorry, we are experiencing technical difficulties. Please try again later.');
-    resp.hangup();
+    const fallbackResponse = '<Response><Say>Sorry, we are experiencing technical difficulties. Please try again later.</Say><Hangup/></Response>';
     
-    return new NextResponse(resp.toString(), {
+    return new NextResponse(fallbackResponse, {
       headers: { 'Content-Type': 'text/xml' }
     });
   }

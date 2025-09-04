@@ -5,6 +5,7 @@ export interface TwilioPayload {
   SpeechResult?: string;
   CallStatus?: 'queued' | 'ringing' | 'in-progress' | 'completed' | 'busy' | 'no-answer' | 'failed' | 'canceled';
   DialCallStatus?: 'completed' | 'busy' | 'no-answer' | 'failed' | 'canceled';
+  CallDuration?: string;
   RecordingUrl?: string;
 }
 

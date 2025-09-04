@@ -1,10 +1,14 @@
 import { neon } from '@neondatabase/serverless';
 import { CallLog, TwilioPayload } from '../types/twilio';
 
-const sql = neon(process.env.DATABASE_URL!);
+const sql = process.env.DATABASE_URL ? neon(process.env.DATABASE_URL) : null;
 
 export class DatabaseService {
   static async logCall(data: Partial<CallLog>): Promise<void> {
+    if (!sql) {
+      console.log('Database not configured, skipping call log');
+      return;
+    }
     try {
       await sql`
         INSERT INTO calls (call_sid, from_number, to_number, caller_name, intent, transcript, outcome, duration, status, timestamp, recording_url)
@@ -16,14 +20,33 @@ export class DatabaseService {
   }
 
   static async updateCall(callSid: string, updates: Partial<CallLog>): Promise<void> {
+    if (!sql) {
+      console.log('Database not configured, skipping call update');
+      return;
+    }
     try {
-      const setClause = Object.entries(updates)
-        .filter(([_, value]) => value !== undefined)
-        .map(([key, _]) => `${key} = $${key}`)
-        .join(', ');
-
-      if (setClause) {
-        await sql`UPDATE calls SET ${sql(updates)} WHERE call_sid = ${callSid}`;
+      // For simplicity with Neon's tagged template literals, handle common update patterns
+      const { intent, transcript, callerName, outcome, status, duration, recordingUrl } = updates;
+      
+      if (intent !== undefined || transcript !== undefined || callerName !== undefined) {
+        await sql`
+          UPDATE calls 
+          SET intent = COALESCE(${intent || null}, intent),
+              transcript = COALESCE(${transcript || null}, transcript),
+              caller_name = COALESCE(${callerName || null}, caller_name)
+          WHERE call_sid = ${callSid}
+        `;
+      }
+      
+      if (outcome !== undefined || status !== undefined || duration !== undefined || recordingUrl !== undefined) {
+        await sql`
+          UPDATE calls 
+          SET outcome = COALESCE(${outcome || null}, outcome),
+              status = COALESCE(${status || null}, status),
+              duration = COALESCE(${duration || null}, duration),
+              recording_url = COALESCE(${recordingUrl || null}, recording_url)
+          WHERE call_sid = ${callSid}
+        `;
       }
     } catch (error) {
       console.error('Database update error:', error);
@@ -31,6 +54,10 @@ export class DatabaseService {
   }
 
   static async getCalls(limit = 20, offset = 0): Promise<CallLog[]> {
+    if (!sql) {
+      console.log('Database not configured, returning empty calls array');
+      return [];
+    }
     try {
       const calls = await sql`
         SELECT * FROM calls 
@@ -45,6 +72,10 @@ export class DatabaseService {
   }
 
   static async getTodayStats(): Promise<any> {
+    if (!sql) {
+      console.log('Database not configured, returning empty stats');
+      return {};
+    }
     try {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -67,6 +98,10 @@ export class DatabaseService {
   }
 
   static async initializeDatabase(): Promise<void> {
+    if (!sql) {
+      console.log('Database not configured, skipping initialization');
+      return;
+    }
     try {
       await sql`
         CREATE TABLE IF NOT EXISTS calls (

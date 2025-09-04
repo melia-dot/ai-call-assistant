@@ -1,4 +1,4 @@
-import { VoiceResponse } from 'twilio/lib/twiml/VoiceResponse';
+import VoiceResponse from 'twilio/lib/twiml/VoiceResponse';
 import { TwilioPayload } from '../types/twilio';
 
 export class TwilioService {
@@ -14,7 +14,7 @@ export class TwilioService {
     
     // Gather speech input
     resp.gather({
-      input: 'speech',
+      input: ['speech'],
       action: '/api/02-process-speech',
       timeout: 5,
       speechTimeout: 'auto'
@@ -27,7 +27,7 @@ export class TwilioService {
     const resp = new VoiceResponse();
     resp.say(message);
     resp.gather({
-      input: 'speech',
+      input: ['speech'],
       action: '/api/02-process-speech',
       timeout: 5,
       speechTimeout: 'auto'
@@ -67,5 +67,9 @@ export class TwilioService {
       maxLength: 120
     });
     return resp.toString();
+  }
+
+  static generateEmptyResponse(): string {
+    return '<Response></Response>';
   }
 }
