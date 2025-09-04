@@ -1,0 +1,484 @@
+openapi: 3.0.3
+info:
+  title: AI Call Assistant API
+  description: |
+    AI-powered call assistant for NuVance Labs that handles incoming calls, analyzes caller intent using Claude AI, and routes calls appropriately.
+    
+    This API includes both Twilio webhook endpoints (called by Twilio) and dashboard endpoints (called by the admin frontend).
+  version: 1.0.0
+  contact:
+    name: NuVance Labs
+    email: michael@nuvancelabs.com
+
+servers:
+  - url: https://your-app.vercel.app
+    description: Production server
+  - url: http://localhost:3000
+    description: Development server
+
+paths:
+  /api/01-voice:
+    post:
+      summary: Handle incoming call
+      description: |
+        Twilio webhook endpoint triggered when a call is received. 
+        Plays compliance notice and greeting, then gathers speech input.
+      tags:
+        - Twilio Webhooks
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                CallSid:
+                  type: string
+                  description: Unique identifier for the call
+                  example: "CA1234567890abcdef1234567890abcdef"
+                From:
+                  type: string
+                  description: Caller's phone number
+                  example: "+1234567890"
+                To:
+                  type: string
+                  description: Called phone number (your Twilio number)
+                  example: "+1987654321"
+                CallStatus:
+                  type: string
+                  enum: [queued, ringing, in-progress, completed, busy, no-answer, failed, canceled]
+                  example: "in-progress"
+              required:
+                - CallSid
+                - From
+                - To
+      responses:
+        '200':
+          description: TwiML response with greeting and speech gathering
+          content:
+            text/xml:
+              schema:
+                type: string
+                example: |
+                  <Response>
+                    <Say>This call may be recorded and transcribed for service purposes.</Say>
+                    <Pause length="1"/>
+                    <Say>Welcome to NuVance Labs. Who would you like to speak with, Emma or Michael?</Say>
+                    <Gather input="speech" action="/api/02-process-speech" timeout="5" speechTimeout="auto"/>
+                  </Response>
+        '500':
+          description: Server error - fallback TwiML response
+          content:
+            text/xml:
+              schema:
+                type: string
+                example: |
+                  <Response>
+                    <Say>Sorry, we are experiencing technical difficulties. Please try again later.</Say>
+                    <Hangup/>
+                  </Response>
+
+  /api/02-process-speech:
+    post:
+      summary: Process speech input and route call
+      description: |
+        Analyzes transcribed speech using Claude AI to determine intent and routes the call accordingly.
+        Handles Emma requests, sales inquiries, business calls, and filters out nonsense calls.
+      tags:
+        - Twilio Webhooks
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                CallSid:
+                  type: string
+                  description: Unique identifier for the call
+                  example: "CA1234567890abcdef1234567890abcdef"
+                SpeechResult:
+                  type: string
+                  description: Transcribed speech from caller
+                  example: "I would like to speak to Emma about pricing"
+                From:
+                  type: string
+                  description: Caller's phone number
+                  example: "+1234567890"
+                DialCallStatus:
+                  type: string
+                  enum: [completed, busy, no-answer, failed, canceled]
+                  description: Status of previous dial attempt (if any)
+                  example: "busy"
+              required:
+                - CallSid
+      responses:
+        '200':
+          description: TwiML response based on intent analysis
+          content:
+            text/xml:
+              schema:
+                type: string
+                examples:
+                  emma_request:
+                    summary: Route to Emma
+                    value: |
+                      <Response>
+                        <Dial>+1234567890</Dial>
+                      </Response>
+                  sales_inquiry:
+                    summary: Sales callback booking
+                    value: |
+                      <Response>
+                        <Say>I need to book you a callback for our sales team. What day and time would work best for you?</Say>
+                        <Gather input="speech" action="/api/02-process-speech"/>
+                      </Response>
+                  business_inquiry:
+                    summary: Route to Michael with screening
+                    value: |
+                      <Response>
+                        <Dial>+1987654321</Dial>
+                      </Response>
+                  nonsense_call:
+                    summary: Filter and hang up
+                    value: |
+                      <Response>
+                        <Say>Thank you for calling NuVance Labs.</Say>
+                        <Hangup/>
+                      </Response>
+
+  /api/03-call-status:
+    post:
+      summary: Handle call completion events
+      description: |
+        Receives call status updates from Twilio when calls end.
+        Updates database with final call duration and status.
+      tags:
+        - Twilio Webhooks
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                CallSid:
+                  type: string
+                  description: Unique identifier for the call
+                  example: "CA1234567890abcdef1234567890abcdef"
+                CallStatus:
+                  type: string
+                  enum: [completed, busy, no-answer, failed, canceled]
+                  example: "completed"
+                CallDuration:
+                  type: string
+                  description: Call duration in seconds
+                  example: "120"
+                RecordingUrl:
+                  type: string
+                  description: URL of call recording (if any)
+                  example: "https://api.twilio.com/2010-04-01/Accounts/.../Recordings/..."
+              required:
+                - CallSid
+                - CallStatus
+      responses:
+        '200':
+          description: Empty TwiML response
+          content:
+            text/xml:
+              schema:
+                type: string
+                example: "<Response></Response>"
+
+  /api/04-auth/login:
+    post:
+      summary: Admin authentication
+      description: |
+        Authenticates admin user with hardcoded credentials.
+        Creates session cookie on successful login.
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                  example: "admin"
+                password:
+                  type: string
+                  example: "your_secure_password"
+              required:
+                - username
+                - password
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Login successful"
+          headers:
+            Set-Cookie:
+              description: Authentication session cookie
+              schema:
+                type: string
+                example: "auth-session=uuid; HttpOnly; Path=/; Expires=..."
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  message:
+                    type: string
+                    example: "Invalid credentials"
+
+  /api/04-auth/logout:
+    post:
+      summary: Admin logout
+      description: |
+        Clears admin session cookie.
+      tags:
+        - Authentication
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Logged out successfully"
+          headers:
+            Set-Cookie:
+              description: Cleared session cookie
+              schema:
+                type: string
+                example: "auth-session=; HttpOnly; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT"
+
+  /api/05-dashboard/calls:
+    get:
+      summary: Fetch call history
+      description: |
+        Returns paginated list of recent calls with details.
+        Requires admin authentication.
+      tags:
+        - Dashboard
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: Page number for pagination
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+          example: 1
+        - name: limit
+          in: query
+          description: Number of calls per page
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+          example: 20
+      responses:
+        '200':
+          description: Call history retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CallLog'
+                  pagination:
+                    type: object
+                    properties:
+                      page:
+                        type: integer
+                        example: 1
+                      limit:
+                        type: integer
+                        example: 20
+                      hasMore:
+                        type: boolean
+                        example: true
+        '401':
+          description: Unauthorized - invalid or missing session
+        '500':
+          description: Server error
+
+  /api/05-dashboard/stats:
+    get:
+      summary: Get call statistics
+      description: |
+        Returns today's call statistics and system health metrics.
+        Requires admin authentication.
+      tags:
+        - Dashboard
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      today:
+                        $ref: '#/components/schemas/CallStats'
+                      systemHealth:
+                        $ref: '#/components/schemas/SystemHealth'
+        '401':
+          description: Unauthorized - invalid or missing session
+        '500':
+          description: Server error
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: auth-session
+
+  schemas:
+    CallLog:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Unique call record ID
+          example: 123
+        callSid:
+          type: string
+          description: Twilio call identifier
+          example: "CA1234567890abcdef1234567890abcdef"
+        from:
+          type: string
+          description: Caller's phone number
+          example: "+1234567890"
+        to:
+          type: string
+          description: Called phone number
+          example: "+1987654321"
+        callerName:
+          type: string
+          nullable: true
+          description: Caller's name if captured
+          example: "John Smith"
+        intent:
+          type: string
+          nullable: true
+          description: AI-classified intent
+          enum: [emma_request, sales_general, business_general, nonsense, unclear]
+          example: "sales_general"
+        transcript:
+          type: string
+          nullable: true
+          description: Call transcript
+          example: "I would like to speak to Emma about pricing"
+        outcome:
+          type: string
+          description: Call outcome
+          enum: [connected, routing_failed, filtered, message_taken, completed]
+          example: "connected"
+        duration:
+          type: integer
+          nullable: true
+          description: Call duration in seconds
+          example: 120
+        status:
+          type: string
+          description: Final call status
+          example: "completed"
+        timestamp:
+          type: string
+          format: date-time
+          description: Call timestamp
+          example: "2025-09-04T15:30:00Z"
+        recordingUrl:
+          type: string
+          nullable: true
+          description: Recording URL if available
+          example: "https://api.twilio.com/2010-04-01/Accounts/.../Recordings/..."
+
+    CallStats:
+      type: object
+      properties:
+        total_calls:
+          type: integer
+          description: Total calls today
+          example: 25
+        successful_routes:
+          type: integer
+          description: Successfully routed calls
+          example: 20
+        filtered_calls:
+          type: integer
+          description: Filtered/blocked calls
+          example: 3
+        messages_taken:
+          type: integer
+          description: Messages taken
+          example: 2
+
+    SystemHealth:
+      type: object
+      properties:
+        lastCallTime:
+          type: string
+          format: date-time
+          description: Timestamp of last call
+          example: "2025-09-04T15:30:00Z"
+        webhookResponseTime:
+          type: string
+          description: Average webhook response time
+          example: "< 1s"
+        apiStatus:
+          type: string
+          enum: [operational, degraded, down]
+          description: Overall API status
+          example: "operational"
+
+tags:
+  - name: Twilio Webhooks
+    description: Endpoints called by Twilio for call handling
+  - name: Authentication
+    description: Admin authentication endpoints
+  - name: Dashboard
+    description: Admin dashboard API endpoints
