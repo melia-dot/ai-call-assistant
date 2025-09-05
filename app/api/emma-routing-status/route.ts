@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { SmartRoutingService } from '../../../../services/smart-routing';
-import { DatabaseService } from '../../../../services/database';
+import { DatabaseService } from '@/services/database';
+import { TwilioService } from '@/services/twilio';
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,13 +12,11 @@ export async function POST(req: NextRequest) {
     const callSid = params.get('CallSid');
     const dialCallStatus = params.get('DialCallStatus');
     const from = params.get('From');
-    const to = params.get('To');
     
     console.log('Emma routing result:', {
       callSid,
       dialCallStatus,
-      from,
-      to
+      from
     });
     
     if (!callSid) {
@@ -35,7 +33,6 @@ export async function POST(req: NextRequest) {
         status: 'connected'
       });
       
-      // Return empty response - call is connected
       return new Response('<Response></Response>', {
         headers: { 'Content-Type': 'application/xml' }
       });
@@ -49,15 +46,12 @@ export async function POST(req: NextRequest) {
       
       const michaelPhone = process.env.MICHAEL_PHONE!;
       if (michaelPhone && michaelPhone !== from) {
-        const { TwilioService } = await import('../../../../services/twilio');
         const twiml = TwilioService.routeCallWithFallback(michaelPhone, from!, '/api/michael-routing-status');
         
         return new Response(twiml, {
           headers: { 'Content-Type': 'application/xml' }
         });
       } else {
-        // Take message as final fallback
-        const { TwilioService } = await import('../../../../services/twilio');
         const twiml = TwilioService.takeMessage();
         
         return new Response(twiml, {

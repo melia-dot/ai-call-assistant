@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { DatabaseService } from '../../../../services/database';
+import { DatabaseService } from '@/services/database';
+import { TwilioService } from '@/services/twilio';
 
 export async function POST(req: NextRequest) {
   try {
@@ -11,13 +12,11 @@ export async function POST(req: NextRequest) {
     const callSid = params.get('CallSid');
     const dialCallStatus = params.get('DialCallStatus');
     const from = params.get('From');
-    const to = params.get('To');
     
     console.log('Michael routing result:', {
       callSid,
       dialCallStatus,
-      from,
-      to
+      from
     });
     
     if (!callSid) {
@@ -34,7 +33,6 @@ export async function POST(req: NextRequest) {
         status: 'connected'
       });
       
-      // Return empty response - call is connected
       return new Response('<Response></Response>', {
         headers: { 'Content-Type': 'application/xml' }
       });
@@ -46,7 +44,6 @@ export async function POST(req: NextRequest) {
         status: 'taking_message'
       });
       
-      const { TwilioService } = await import('../../../../services/twilio');
       const twiml = TwilioService.takeMessage();
       
       return new Response(twiml, {

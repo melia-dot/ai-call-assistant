@@ -97,6 +97,42 @@ export class DatabaseService {
     }
   }
 
+  static async executeQuery(query: string, values?: any[]): Promise<any> {
+    if (!sql) {
+      console.log('Database not configured, skipping query execution');
+      return { rows: [] };
+    }
+    try {
+      // Simple session query implementation for admin_sessions
+      if (query.includes('admin_sessions')) {
+        if (query.includes('SELECT')) {
+          const sessionId = values?.[0];
+          const result = await sql`
+            SELECT * FROM admin_sessions 
+            WHERE session_id = ${sessionId} AND expires_at > NOW()
+          `;
+          return { rows: result };
+        } else if (query.includes('INSERT')) {
+          const [sessionId, userId, expiresAt] = values || [];
+          await sql`
+            INSERT INTO admin_sessions (session_id, user_id, expires_at) 
+            VALUES (${sessionId}, ${userId}, ${expiresAt})
+            ON CONFLICT (session_id) DO UPDATE SET expires_at = ${expiresAt}
+          `;
+          return { rows: [] };
+        } else if (query.includes('DELETE')) {
+          const sessionId = values?.[0];
+          await sql`DELETE FROM admin_sessions WHERE session_id = ${sessionId}`;
+          return { rows: [] };
+        }
+      }
+      return { rows: [] };
+    } catch (error) {
+      console.error('Database query execution error:', error);
+      return { rows: [] };
+    }
+  }
+
   static async initializeDatabase(): Promise<void> {
     if (!sql) {
       console.log('Database not configured, skipping initialization');
