@@ -31,19 +31,29 @@ export class ClaudeService {
           
           Extract caller name if mentioned.
           
-          Return JSON format:
-          {
-            "intent": "category",
-            "confidence": 0.8,
-            "response": "appropriate TTS response",
-            "callerName": "name if found"
-          }`
+          Return ONLY valid JSON with no extra text:
+          {"intent": "category", "confidence": 0.8, "response": "appropriate TTS response", "callerName": "name if found"}`
         }]
       });
 
       const content = response.content[0];
       if (content.type === 'text') {
-        return JSON.parse(content.text);
+        // Clean the response to extract only JSON
+        let jsonText = content.text.trim();
+        
+        // Try to extract JSON from the response
+        const jsonMatch = jsonText.match(/\{[^}]+\}/);
+        if (jsonMatch) {
+          jsonText = jsonMatch[0];
+        }
+        
+        try {
+          return JSON.parse(jsonText);
+        } catch (parseError) {
+          console.error('JSON parse error:', parseError, 'Raw text:', jsonText);
+          // Fall back to mock response
+          return this.mockAnalysis(transcript);
+        }
       }
       throw new Error('Unexpected response format');
     } catch (error) {

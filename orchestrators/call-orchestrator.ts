@@ -3,8 +3,36 @@ import { DatabaseService } from '../services/database';
 import { TwilioService } from '../services/twilio';
 import { TwilioPayload } from '../types/twilio';
 
+// Simple in-memory store for SSE clients
+let sseClients: Response[] = [];
+
+export function addSSEClient(response: Response) {
+  sseClients.push(response);
+}
+
+export function removeSSEClient(response: Response) {
+  sseClients = sseClients.filter(client => client !== response);
+}
+
+export function broadcastUpdate(data: any) {
+  const message = `data: ${JSON.stringify(data)}\n\n`;
+  sseClients.forEach(client => {
+    try {
+      client.write(message);
+    } catch (error) {
+      console.error('SSE broadcast error:', error);
+    }
+  });
+}
+
 export class CallOrchestrator {
   static async handleIncomingCall(payload: TwilioPayload): Promise<string> {
+    broadcastUpdate({
+      type: 'call_status',
+      status: 'Incoming Call',
+      message: 'Processing new call from ' + payload.From
+    });
+
     await DatabaseService.logCall({
       callSid: payload.CallSid,
       from: payload.From,
@@ -12,6 +40,12 @@ export class CallOrchestrator {
       status: 'incoming',
       outcome: 'processing',
       timestamp: new Date()
+    });
+
+    broadcastUpdate({
+      type: 'call_status',
+      status: 'Answering Call',
+      message: 'Playing greeting and gathering speech...'
     });
 
     return TwilioService.generateGreeting();
