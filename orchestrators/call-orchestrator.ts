@@ -2,11 +2,11 @@ import { ClaudeService } from '../services/claude';
 import { DatabaseService } from '../services/database';
 import { TwilioService } from '../services/twilio';
 import { TwilioPayload } from '../types/twilio';
-import { broadcastToClients } from '../app/api/05-dashboard/live/route';
+import { SSEBroadcaster } from '../services/sse-broadcaster';
 
 export class CallOrchestrator {
   static async handleIncomingCall(payload: TwilioPayload): Promise<string> {
-    broadcastToClients({
+    SSEBroadcaster.broadcast({
       type: 'call_status',
       status: 'Incoming Call',
       message: 'Processing new call from ' + payload.From
@@ -21,7 +21,7 @@ export class CallOrchestrator {
       timestamp: new Date()
     });
 
-    broadcastToClients({
+    SSEBroadcaster.broadcast({
       type: 'call_status',
       status: 'Answering Call',
       message: 'Playing greeting and gathering speech...'
@@ -44,7 +44,7 @@ export class CallOrchestrator {
 
     // Process speech input
     if (!SpeechResult) {
-      broadcastToClients({
+      SSEBroadcaster.broadcast({
         type: 'call_status',
         status: 'Waiting for Speech',
         message: 'No speech detected, prompting caller...'
@@ -55,7 +55,7 @@ export class CallOrchestrator {
       );
     }
 
-    broadcastToClients({
+    SSEBroadcaster.broadcast({
       type: 'call_status',
       status: 'Claude Analyzing',
       message: 'AI analyzing caller intent...'
@@ -64,7 +64,7 @@ export class CallOrchestrator {
     // Analyze intent with Claude
     const analysis = await ClaudeService.analyzeIntent(SpeechResult);
 
-    broadcastToClients({
+    SSEBroadcaster.broadcast({
       type: 'call_status',
       status: 'Processing Intent',
       message: `Intent classified as: ${analysis.intent}`

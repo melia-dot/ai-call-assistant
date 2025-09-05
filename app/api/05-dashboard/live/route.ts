@@ -1,16 +1,14 @@
 import { NextRequest } from 'next/server';
+import { SSEBroadcaster } from '../../../../services/sse-broadcaster';
 
 export const dynamic = 'force-dynamic';
-
-// Store SSE connections
-let connections = new Set<ReadableStreamDefaultController>();
 
 export async function GET(req: NextRequest) {
   const encoder = new TextEncoder();
   
   const stream = new ReadableStream({
     start(controller) {
-      connections.add(controller);
+      SSEBroadcaster.addConnection(controller);
       
       // Send initial connection message
       const data = `data: ${JSON.stringify({
@@ -31,18 +29,18 @@ export async function GET(req: NextRequest) {
           controller.enqueue(encoder.encode(statusUpdate));
         } catch (error) {
           clearInterval(heartbeat);
-          connections.delete(controller);
+          SSEBroadcaster.removeConnection(controller);
         }
       }, 30000);
       
       // Clean up on close
       req.signal.addEventListener('abort', () => {
         clearInterval(heartbeat);
-        connections.delete(controller);
+        SSEBroadcaster.removeConnection(controller);
       });
     },
     cancel() {
-      connections.delete(this);
+      SSEBroadcaster.removeConnection(this);
     }
   });
 
@@ -55,20 +53,5 @@ export async function GET(req: NextRequest) {
       'Access-Control-Allow-Methods': 'GET',
       'Access-Control-Allow-Headers': 'Cache-Control'
     },
-  });
-}
-
-// Export function to broadcast to all connections
-export function broadcastToClients(data: any) {
-  const encoder = new TextEncoder();
-  const message = `data: ${JSON.stringify(data)}\n\n`;
-  
-  connections.forEach((controller) => {
-    try {
-      controller.enqueue(encoder.encode(message));
-    } catch (error) {
-      console.error('Failed to send SSE message:', error);
-      connections.delete(controller);
-    }
   });
 }
