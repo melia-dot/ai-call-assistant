@@ -107,8 +107,38 @@ export class CallOrchestrator {
         outcome: 'all_routing_failed'
       });
       
+      SSEBroadcaster.broadcast({
+        type: 'call_status',
+        status: 'Taking Message',
+        message: 'All routing failed, taking voicemail'
+      });
+      
       // Final fallback - take a message
       return TwilioService.takeMessage();
+    }
+
+    // Handle recording completion (when RecordingUrl is present)
+    if (RecordingUrl) {
+      console.log('📹 RECORDING COMPLETED:', RecordingUrl);
+      
+      await DatabaseService.updateCall(CallSid, {
+        status: CallStatus || 'completed',
+        duration: CallDuration ? parseInt(CallDuration) : undefined,
+        recordingUrl: RecordingUrl,
+        outcome: 'message_taken'
+      });
+      
+      // Reset dashboard status after message taking
+      SSEBroadcaster.broadcast({
+        type: 'call_status',
+        status: 'Ready',
+        message: 'Voicemail recorded successfully'
+      });
+      
+      // Clear routing attempts for this call
+      SmartRoutingService.clearCallAttempts(CallSid);
+      
+      return TwilioService.generateEmptyResponse();
     }
 
     // Standard call completion handling
@@ -118,6 +148,23 @@ export class CallOrchestrator {
       recordingUrl: RecordingUrl,
       outcome: CallStatus === 'completed' ? 'completed' : 'failed'
     });
+
+    // Reset dashboard status after call completion
+    SSEBroadcaster.broadcast({
+      type: 'call_status',
+      status: 'Ready',
+      message: 'Waiting for incoming calls...'
+    });
+
+    // Broadcast call completion to refresh dashboard data
+    SSEBroadcaster.broadcast({
+      type: 'call_completed',
+      callSid: CallSid,
+      message: 'Call completed - refreshing dashboard'
+    });
+
+    // Clear routing attempts for this call
+    SmartRoutingService.clearCallAttempts(CallSid);
 
     return TwilioService.generateEmptyResponse();
   }

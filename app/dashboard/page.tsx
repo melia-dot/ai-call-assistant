@@ -18,6 +18,20 @@ interface SystemStats {
   filteredCalls: number;
 }
 
+interface VoicemailMessage {
+  id: number;
+  callSid: string;
+  from: string;
+  callerName: string;
+  timestamp: string;
+  timeAgo: string;
+  recordingUrl?: string;
+  transcript?: string;
+  intent?: string;
+  outcome: string;
+  duration?: number;
+}
+
 export default function Dashboard() {
   const [systemStatus, setSystemStatus] = useState('Ready');
   const [statusMessage, setStatusMessage] = useState('Waiting for incoming calls...');
@@ -28,6 +42,7 @@ export default function Dashboard() {
     filteredCalls: 0
   });
   const [callLog, setCallLog] = useState<CallActivity[]>([]);
+  const [messages, setMessages] = useState<VoicemailMessage[]>([]);
 
   // Fetch initial data
   useEffect(() => {
@@ -35,6 +50,7 @@ export default function Dashboard() {
     
     fetchStats();
     fetchCallLog();
+    fetchMessages();
     
     // Set up real-time updates
     console.log('Dashboard: Setting up SSE connection...');
@@ -55,6 +71,12 @@ export default function Dashboard() {
         } else if (data.type === 'new_call') {
           addCallToLog(data.call);
           fetchStats(); // Refresh stats
+          fetchMessages(); // Refresh messages in case it was a voicemail
+        } else if (data.type === 'call_completed') {
+          console.log('Dashboard: Call completed, refreshing data...');
+          fetchStats(); // Refresh stats
+          fetchCallLog(); // Refresh call log
+          fetchMessages(); // Refresh messages
         }
       } catch (error) {
         console.error('Dashboard: Error parsing SSE data:', error);
@@ -119,6 +141,25 @@ export default function Dashboard() {
       }
     } catch (error) {
       console.error('Dashboard: Failed to fetch call log:', error);
+    }
+  };
+
+  const fetchMessages = async () => {
+    console.log('Dashboard: Fetching messages/voicemails...');
+    try {
+      const response = await fetch('/api/05-dashboard/messages?limit=10');
+      console.log('Dashboard: Messages response status:', response.status);
+      
+      const data = await response.json();
+      console.log('Dashboard: Messages data:', data);
+      
+      if (data.success) {
+        setMessages(data.data);
+      } else {
+        console.error('Dashboard: Messages API returned error:', data.message);
+      }
+    } catch (error) {
+      console.error('Dashboard: Failed to fetch messages:', error);
     }
   };
 
@@ -243,6 +284,57 @@ export default function Dashboard() {
                 </span>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Messages/Voicemails Section */}
+        <div className="bg-white/95 backdrop-blur-xl rounded-3xl p-8 shadow-2xl mb-8">
+          <h3 className="text-xl font-semibold text-gray-700 mb-6">Voicemail Messages</h3>
+          <div className="max-h-96 overflow-y-auto space-y-3">
+            {messages.length === 0 ? (
+              <div className="text-center text-gray-500 py-8">
+                No voicemail messages yet.
+              </div>
+            ) : (
+              messages.map((message) => (
+                <div key={message.id} className="p-4 rounded-xl border-l-4 border-l-blue-500 bg-blue-50">
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <div className="font-semibold text-gray-800">
+                        {message.callerName} ({message.from})
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        {new Date(message.timestamp).toLocaleString()} - {message.timeAgo}
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <span className="inline-block bg-blue-200 text-blue-700 px-2 py-1 rounded text-xs">
+                        {message.intent || 'Unknown'}
+                      </span>
+                      <span className="inline-block bg-gray-200 text-gray-700 px-2 py-1 rounded text-xs">
+                        {message.outcome}
+                      </span>
+                    </div>
+                  </div>
+                  {message.transcript && (
+                    <div className="text-gray-700 mb-2 italic">
+                      "{message.transcript}"
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center">
+                    <div className="text-xs text-gray-500">
+                      Duration: {message.duration ? `${message.duration}s` : 'Unknown'}
+                    </div>
+                    {message.recordingUrl && (
+                      <audio controls className="h-8">
+                        <source src={message.recordingUrl} type="audio/mpeg" />
+                        Your browser does not support the audio element.
+                      </audio>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
 

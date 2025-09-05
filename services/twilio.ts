@@ -96,7 +96,9 @@ export class TwilioService {
     resp.record({
       action: '/api/03-call-status',
       timeout: 30,
-      maxLength: 120
+      maxLength: 120,
+      recordingStatusCallback: '/api/03-call-status',
+      recordingStatusCallbackMethod: 'POST'
     });
     return resp.toString();
   }

@@ -97,6 +97,27 @@ export class DatabaseService {
     }
   }
 
+  static async getMessages(limit = 20, offset = 0): Promise<CallLog[]> {
+    if (!sql) {
+      console.log('Database not configured, returning empty messages array');
+      return [];
+    }
+    try {
+      // Get calls that have recordings or were messages/voicemails
+      const messages = await sql`
+        SELECT * FROM calls 
+        WHERE recording_url IS NOT NULL 
+           OR outcome IN ('message_taken', 'michael_failed_taking_message', 'all_routing_failed')
+        ORDER BY timestamp DESC 
+        LIMIT ${limit} OFFSET ${offset}
+      `;
+      return messages as CallLog[];
+    } catch (error) {
+      console.error('Database messages query error:', error);
+      return [];
+    }
+  }
+
   static async executeQuery(query: string, values?: any[]): Promise<any> {
     if (!sql) {
       console.log('Database not configured, skipping query execution');

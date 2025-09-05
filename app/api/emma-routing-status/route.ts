@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DatabaseService } from '@/services/database';
 import { TwilioService } from '@/services/twilio';
+import { SSEBroadcaster } from '@/services/sse-broadcaster';
+import { SmartRoutingService } from '@/services/smart-routing';
 
 export async function POST(req: NextRequest) {
   try {
@@ -33,6 +35,13 @@ export async function POST(req: NextRequest) {
         status: 'connected'
       });
       
+      // Broadcast success status
+      SSEBroadcaster.broadcast({
+        type: 'call_status',
+        status: 'Connected to Emma',
+        message: 'Call successfully routed to Emma'
+      });
+      
       return new Response('<Response></Response>', {
         headers: { 'Content-Type': 'application/xml' }
       });
@@ -44,6 +53,12 @@ export async function POST(req: NextRequest) {
         status: 'routing'
       });
       
+      SSEBroadcaster.broadcast({
+        type: 'call_status',
+        status: 'Routing to Michael',
+        message: 'Emma unavailable, trying Michael...'
+      });
+      
       const michaelPhone = process.env.MICHAEL_PHONE!;
       if (michaelPhone && michaelPhone !== from) {
         const twiml = TwilioService.routeCallWithFallback(michaelPhone, from!, '/api/michael-routing-status');
@@ -52,6 +67,18 @@ export async function POST(req: NextRequest) {
           headers: { 'Content-Type': 'application/xml' }
         });
       } else {
+        // Final fallback - reset status and take message
+        await DatabaseService.updateCall(callSid, {
+          outcome: 'all_routing_failed',
+          status: 'taking_message'
+        });
+        
+        SSEBroadcaster.broadcast({
+          type: 'call_status',
+          status: 'Taking Message',
+          message: 'All routing failed, taking voicemail'
+        });
+        
         const twiml = TwilioService.takeMessage();
         
         return new Response(twiml, {
