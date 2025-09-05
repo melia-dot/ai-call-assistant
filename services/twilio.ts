@@ -101,6 +101,37 @@ export class TwilioService {
     return resp.toString();
   }
 
+  static routeCallWithFallback(phoneNumber: string, callerNumber: string, actionUrl: string): string {
+    const resp = new VoiceResponse();
+    
+    console.log(`=== ENHANCED CALL ROUTING ===`);
+    console.log(`From: ${callerNumber}`);
+    console.log(`To: ${phoneNumber}`);
+    console.log(`Action URL: ${actionUrl}`);
+    
+    // Prevent routing to same number
+    if (phoneNumber === callerNumber) {
+      console.log('❌ BLOCKED: Cannot route call to same number');
+      return this.takeMessage();
+    }
+
+    console.log('✅ Generating enhanced dial command');
+    
+    // Enhanced dial with proper fallback handling
+    const dial = resp.dial({
+      timeout: 25,
+      action: actionUrl,
+      method: 'POST'
+    });
+    
+    dial.number({
+      statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed']
+    }, phoneNumber);
+    
+    console.log('📞 Enhanced TwiML generated');
+    return resp.toString();
+  }
+
   static generateEmptyResponse(): string {
     return '<Response></Response>';
   }
