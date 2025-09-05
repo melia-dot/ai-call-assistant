@@ -135,7 +135,7 @@ export class CallOrchestrator {
         return this.handleSalesInquiry();
       
       case 'business_general':
-        return this.handleBusinessInquiry(callerNumber, callerName);
+        return await this.handleBusinessInquiry(callerNumber, callerName);
       
       case 'nonsense':
         if (callSid) {
@@ -175,7 +175,8 @@ export class CallOrchestrator {
     );
   }
 
-  private static handleBusinessInquiry(callerNumber: string, callerName?: string): string {
+  private static async handleBusinessInquiry(callerNumber: string, callerName?: string): Promise<string> {
+    console.log('💼 Business inquiry - routing to Michael');
     const michaelPhone = process.env.MICHAEL_PHONE!;
     return TwilioService.routeCall(michaelPhone, callerNumber);
   }
