@@ -5,9 +5,11 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   const encoder = new TextEncoder();
+  let currentController: ReadableStreamDefaultController | null = null;
   
   const stream = new ReadableStream({
     start(controller) {
+      currentController = controller;
       SSEBroadcaster.addConnection(controller);
       
       // Send initial connection message
@@ -40,7 +42,9 @@ export async function GET(req: NextRequest) {
       });
     },
     cancel() {
-      SSEBroadcaster.removeConnection(this);
+      if (currentController) {
+        SSEBroadcaster.removeConnection(currentController);
+      }
     }
   });
 
