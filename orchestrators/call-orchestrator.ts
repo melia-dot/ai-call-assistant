@@ -2,32 +2,11 @@ import { ClaudeService } from '../services/claude';
 import { DatabaseService } from '../services/database';
 import { TwilioService } from '../services/twilio';
 import { TwilioPayload } from '../types/twilio';
-
-// Simple in-memory store for SSE clients
-let sseClients: Response[] = [];
-
-export function addSSEClient(response: Response) {
-  sseClients.push(response);
-}
-
-export function removeSSEClient(response: Response) {
-  sseClients = sseClients.filter(client => client !== response);
-}
-
-export function broadcastUpdate(data: any) {
-  const message = `data: ${JSON.stringify(data)}\n\n`;
-  sseClients.forEach(client => {
-    try {
-      client.write(message);
-    } catch (error) {
-      console.error('SSE broadcast error:', error);
-    }
-  });
-}
+import { broadcastToClients } from '../app/api/05-dashboard/live/route';
 
 export class CallOrchestrator {
   static async handleIncomingCall(payload: TwilioPayload): Promise<string> {
-    broadcastUpdate({
+    broadcastToClients({
       type: 'call_status',
       status: 'Incoming Call',
       message: 'Processing new call from ' + payload.From
@@ -42,7 +21,7 @@ export class CallOrchestrator {
       timestamp: new Date()
     });
 
-    broadcastUpdate({
+    broadcastToClients({
       type: 'call_status',
       status: 'Answering Call',
       message: 'Playing greeting and gathering speech...'
@@ -65,13 +44,31 @@ export class CallOrchestrator {
 
     // Process speech input
     if (!SpeechResult) {
+      broadcastToClients({
+        type: 'call_status',
+        status: 'Waiting for Speech',
+        message: 'No speech detected, prompting caller...'
+      });
+      
       return TwilioService.generateSpeechPrompt(
         'I didn\'t catch that. Please try again.'
       );
     }
 
+    broadcastToClients({
+      type: 'call_status',
+      status: 'Claude Analyzing',
+      message: 'AI analyzing caller intent...'
+    });
+
     // Analyze intent with Claude
     const analysis = await ClaudeService.analyzeIntent(SpeechResult);
+
+    broadcastToClients({
+      type: 'call_status',
+      status: 'Processing Intent',
+      message: `Intent classified as: ${analysis.intent}`
+    });
 
     // Update call log
     await DatabaseService.updateCall(CallSid, {

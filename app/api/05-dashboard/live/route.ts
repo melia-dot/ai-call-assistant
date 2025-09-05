@@ -2,13 +2,16 @@ import { NextRequest } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-// In a real implementation, you'd want to use a more robust solution for production
-// This is a simplified version for demo purposes
+// Store SSE connections
+let connections = new Set<ReadableStreamDefaultController>();
+
 export async function GET(req: NextRequest) {
   const encoder = new TextEncoder();
   
   const stream = new ReadableStream({
     start(controller) {
+      connections.add(controller);
+      
       // Send initial connection message
       const data = `data: ${JSON.stringify({
         type: 'connected',
@@ -17,8 +20,8 @@ export async function GET(req: NextRequest) {
       
       controller.enqueue(encoder.encode(data));
       
-      // For demo purposes, send periodic status updates
-      const interval = setInterval(() => {
+      // Send heartbeat every 30 seconds
+      const heartbeat = setInterval(() => {
         try {
           const statusUpdate = `data: ${JSON.stringify({
             type: 'heartbeat',
@@ -27,15 +30,19 @@ export async function GET(req: NextRequest) {
           
           controller.enqueue(encoder.encode(statusUpdate));
         } catch (error) {
-          clearInterval(interval);
+          clearInterval(heartbeat);
+          connections.delete(controller);
         }
-      }, 30000); // Every 30 seconds
+      }, 30000);
       
       // Clean up on close
       req.signal.addEventListener('abort', () => {
-        clearInterval(interval);
-        controller.close();
+        clearInterval(heartbeat);
+        connections.delete(controller);
       });
+    },
+    cancel() {
+      connections.delete(this);
     }
   });
 
@@ -44,6 +51,24 @@ export async function GET(req: NextRequest) {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
       'Connection': 'keep-alive',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET',
+      'Access-Control-Allow-Headers': 'Cache-Control'
     },
+  });
+}
+
+// Export function to broadcast to all connections
+export function broadcastToClients(data: any) {
+  const encoder = new TextEncoder();
+  const message = `data: ${JSON.stringify(data)}\n\n`;
+  
+  connections.forEach((controller) => {
+    try {
+      controller.enqueue(encoder.encode(message));
+    } catch (error) {
+      console.error('Failed to send SSE message:', error);
+      connections.delete(controller);
+    }
   });
 }
