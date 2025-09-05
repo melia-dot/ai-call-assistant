@@ -51,18 +51,30 @@ export class TwilioService {
   static routeCall(phoneNumber: string, callerNumber: string): string {
     const resp = new VoiceResponse();
     
-    console.log(`Attempting to route call from ${callerNumber} to ${phoneNumber}`);
+    console.log(`=== CALL ROUTING ATTEMPT ===`);
+    console.log(`From: ${callerNumber}`);
+    console.log(`To: ${phoneNumber}`);
+    console.log(`Numbers match: ${phoneNumber === callerNumber}`);
     
     // Prevent routing to same number
     if (phoneNumber === callerNumber) {
-      console.log('BLOCKED: Cannot route call to same number');
-      resp.say('Cannot route call to the same number.');
+      console.log('❌ BLOCKED: Cannot route call to same number');
+      resp.say('Sorry, I cannot route this call to the same number. Please try a different request.');
       resp.hangup();
       return resp.toString();
     }
 
-    console.log('Routing call via Twilio dial');
-    resp.dial(phoneNumber);
+    console.log('✅ Proceeding with Twilio dial command');
+    
+    // Add timeout and status reporting
+    const dial = resp.dial({
+      timeout: 30,
+      action: '/api/03-call-status',
+      record: 'record-from-ringing'
+    });
+    dial.number(phoneNumber);
+    
+    console.log('📞 TwiML generated for dial operation');
     return resp.toString();
   }
 
