@@ -66,10 +66,13 @@ export class TwilioService {
 
     console.log('✅ Proceeding with Twilio dial command');
     
+    // Different action URL for fallback calls to prevent infinite loops
+    const actionUrl = callerNumber === 'fallback' ? '/api/03-call-status' : '/api/debug-webhook';
+    
     // Add timeout and status reporting
     const dial = resp.dial({
       timeout: 30,
-      action: '/api/03-call-status',
+      action: actionUrl,
       record: 'record-from-ringing'
     });
     dial.number(phoneNumber);
@@ -89,7 +92,7 @@ export class TwilioService {
 
   static takeMessage(): string {
     const resp = new VoiceResponse();
-    resp.say('Please leave a brief message with your name and reason for calling after the beep.');
+    resp.say('I\'m sorry, but that person is not available right now. Please leave a brief message with your name and reason for calling after the beep.');
     resp.record({
       action: '/api/03-call-status',
       timeout: 30,

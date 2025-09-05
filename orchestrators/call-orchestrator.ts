@@ -69,6 +69,11 @@ export class CallOrchestrator {
       status: 'Processing Intent',
       message: `Intent classified as: ${analysis.intent}`
     });
+    
+    console.log('🧠 CLAUDE ANALYSIS RESULT:');
+    console.log('- Intent:', analysis.intent);
+    console.log('- Caller name:', analysis.callerName);
+    console.log('- Transcript:', SpeechResult);
 
     // Update call log
     await DatabaseService.updateCall(CallSid, {
@@ -82,8 +87,30 @@ export class CallOrchestrator {
   }
 
   static async handleCallStatus(payload: TwilioPayload): Promise<string> {
-    const { CallSid, CallStatus, CallDuration, RecordingUrl } = payload;
+    const { CallSid, CallStatus, DialCallStatus, CallDuration, RecordingUrl } = payload;
 
+    console.log('📞 CALL STATUS HANDLER:');
+    console.log('- CallSid:', CallSid);
+    console.log('- CallStatus:', CallStatus);
+    console.log('- DialCallStatus:', DialCallStatus);
+    console.log('- Duration:', CallDuration);
+
+    // Handle dial failures in fallback routing
+    if (DialCallStatus && ['busy', 'no-answer', 'failed'].includes(DialCallStatus)) {
+      console.log(`❌ FALLBACK DIAL ALSO FAILED: ${DialCallStatus}`);
+      
+      await DatabaseService.updateCall(CallSid, {
+        status: DialCallStatus,
+        duration: CallDuration ? parseInt(CallDuration) : undefined,
+        recordingUrl: RecordingUrl,
+        outcome: 'all_routing_failed'
+      });
+      
+      // Final fallback - take a message
+      return TwilioService.takeMessage();
+    }
+
+    // Standard call completion handling
     await DatabaseService.updateCall(CallSid, {
       status: CallStatus || 'unknown',
       duration: CallDuration ? parseInt(CallDuration) : undefined,
@@ -125,13 +152,20 @@ export class CallOrchestrator {
 
   private static handleEmmaRequest(callerNumber: string): string {
     const emmaPhone = process.env.EMMA_PHONE!;
-    console.log('Routing to Emma:', emmaPhone, 'from caller:', callerNumber);
+    console.log('🎯 EMMA ROUTING ATTEMPT:');
+    console.log('- Emma phone:', emmaPhone);
+    console.log('- Caller number:', callerNumber);
+    console.log('- Environment check:', {
+      EMMA_PHONE: !!process.env.EMMA_PHONE,
+      MICHAEL_PHONE: !!process.env.MICHAEL_PHONE
+    });
     
     if (!emmaPhone) {
-      console.error('EMMA_PHONE not configured');
+      console.error('❌ EMMA_PHONE not configured in environment');
       return TwilioService.generateSpeechPrompt('Sorry, Emma is not available right now. Let me connect you to Michael instead.');
     }
     
+    console.log('✅ Generating TwiML for Emma routing');
     return TwilioService.routeCall(emmaPhone, callerNumber);
   }
 
