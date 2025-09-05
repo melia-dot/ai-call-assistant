@@ -51,13 +51,17 @@ export class TwilioService {
   static routeCall(phoneNumber: string, callerNumber: string): string {
     const resp = new VoiceResponse();
     
+    console.log(`Attempting to route call from ${callerNumber} to ${phoneNumber}`);
+    
     // Prevent routing to same number
     if (phoneNumber === callerNumber) {
+      console.log('BLOCKED: Cannot route call to same number');
       resp.say('Cannot route call to the same number.');
       resp.hangup();
       return resp.toString();
     }
 
+    console.log('Routing call via Twilio dial');
     resp.dial(phoneNumber);
     return resp.toString();
   }
