@@ -8,9 +8,9 @@ export async function POST(req: NextRequest) {
     
     // Extract ALL webhook data for debugging
     const webhookData: Record<string, any> = {};
-    for (const [key, value] of formData.entries()) {
+    formData.forEach((value, key) => {
       webhookData[key] = value;
-    }
+    });
     
     console.log('🔍 FULL WEBHOOK PAYLOAD:', JSON.stringify(webhookData, null, 2));
     
