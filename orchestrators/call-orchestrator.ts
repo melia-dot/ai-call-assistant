@@ -125,6 +125,13 @@ export class CallOrchestrator {
 
   private static handleEmmaRequest(callerNumber: string): string {
     const emmaPhone = process.env.EMMA_PHONE!;
+    console.log('Routing to Emma:', emmaPhone, 'from caller:', callerNumber);
+    
+    if (!emmaPhone) {
+      console.error('EMMA_PHONE not configured');
+      return TwilioService.generateSpeechPrompt('Sorry, Emma is not available right now. Let me connect you to Michael instead.');
+    }
+    
     return TwilioService.routeCall(emmaPhone, callerNumber);
   }
 

@@ -5,18 +5,31 @@ export class TwilioService {
   static generateGreeting(): string {
     const resp = new VoiceResponse();
     
+    // Welcoming greeting first
+    resp.say('Welcome to NuVance Labs!');
+    resp.pause({ length: 1 });
+    
     // UK compliance requirement
     resp.say('This call may be recorded and transcribed for service purposes.');
     resp.pause({ length: 1 });
     
-    // Main greeting
-    resp.say('Welcome to NuVance Labs. Who would you like to speak with, Emma or Michael?');
+    // Main prompt
+    resp.say('Who would you like to speak with today? You can say Emma, Michael, or describe what you need help with.');
     
     // Gather speech input
     resp.gather({
       input: ['speech'],
       action: '/api/02-process-speech',
-      timeout: 5,
+      timeout: 8,
+      speechTimeout: 'auto'
+    });
+    
+    // If no response, try again
+    resp.say('I didn\'t catch that. Please say Emma, Michael, or tell me how I can help you.');
+    resp.gather({
+      input: ['speech'],
+      action: '/api/02-process-speech',
+      timeout: 8,
       speechTimeout: 'auto'
     });
     

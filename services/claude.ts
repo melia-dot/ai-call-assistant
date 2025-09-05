@@ -7,93 +7,95 @@ const anthropic = new Anthropic({
 
 export class ClaudeService {
   static async analyzeIntent(transcript: string): Promise<ClaudeResponse> {
-    // Mock response for development (to save API costs)
-    if (process.env.NODE_ENV === 'development') {
-      return this.mockAnalysis(transcript);
-    }
-
+    // Always use Claude in production - remove mock fallback
     try {
       const response = await anthropic.messages.create({
         model: 'claude-3-5-sonnet-20241022',
-        max_tokens: 150,
+        max_tokens: 200,
         messages: [{
           role: 'user',
-          content: `Analyze this call transcript and classify the intent:
+          content: `You are an intelligent call routing assistant for NuVance Labs.
           
-          Transcript: "${transcript}"
+Analyze this caller's request and determine their intent:
           
-          Classify into one of:
-          - emma_request: Caller specifically asks for Emma
-          - sales_general: Sales inquiry without specific person
-          - business_general: General business inquiry
-          - nonsense: Prank call or irrelevant content
-          - unclear: Need clarification
+Caller said: "${transcript}"
           
-          Extract caller name if mentioned.
+Routing options:
+          - emma_request: Caller specifically wants to speak with Emma (by name)
+          - business_general: Any business inquiry, official calls, government matters, tax issues, support needs, etc. - route to Michael
+          - sales_general: Sales inquiries, pricing, purchasing - needs callback booking
+          - nonsense: Obviously fake/prank calls
+          - unclear: Genuinely unclear what they want
           
-          Return ONLY valid JSON with no extra text:
-          {"intent": "category", "confidence": 0.8, "response": "appropriate TTS response", "callerName": "name if found"}`
+Think about WHO they want to speak with and WHY they're calling. Government officials, tax offices, business inquiries should go to Michael. Only route to Emma if they specifically ask for her.
+          
+Respond with ONLY this JSON format:
+          {"intent": "category", "confidence": 0.8, "reasoning": "why you chose this", "callerName": "name if mentioned"}`
         }]
       });
 
       const content = response.content[0];
       if (content.type === 'text') {
-        // Clean the response to extract only JSON
+        // Extract JSON from response
         let jsonText = content.text.trim();
-        
-        // Try to extract JSON from the response
         const jsonMatch = jsonText.match(/\{[^}]+\}/);
         if (jsonMatch) {
           jsonText = jsonMatch[0];
         }
         
         try {
-          return JSON.parse(jsonText);
+          const analysis = JSON.parse(jsonText);
+          console.log('Claude analysis:', analysis);
+          return {
+            intent: analysis.intent,
+            confidence: analysis.confidence || 0.8,
+            response: this.generateResponse(analysis.intent),
+            callerName: analysis.callerName
+          };
         } catch (parseError) {
           console.error('JSON parse error:', parseError, 'Raw text:', jsonText);
-          // Fall back to mock response
-          return this.mockAnalysis(transcript);
+          return this.fallbackAnalysis(transcript);
         }
       }
       throw new Error('Unexpected response format');
     } catch (error) {
       console.error('Claude API error:', error);
-      return this.mockAnalysis(transcript);
+      return this.fallbackAnalysis(transcript);
     }
   }
 
-  private static mockAnalysis(transcript: string): ClaudeResponse {
+  private static generateResponse(intent: string): string {
+    switch (intent) {
+      case 'emma_request':
+        return 'I\'ll connect you to Emma now.';
+      case 'business_general':
+        return 'Let me transfer you to Michael who can help with that.';
+      case 'sales_general':
+        return 'I\'ll need to book you a callback with our sales team. What time works for you?';
+      case 'nonsense':
+        return 'Thank you for calling NuVance Labs.';
+      default:
+        return 'Could you please tell me if you\'d like to speak with Emma, Michael, or what I can help you with today?';
+    }
+  }
+
+  private static fallbackAnalysis(transcript: string): ClaudeResponse {
     const lowerTranscript = transcript.toLowerCase();
     
+    // Only do basic fallback - let Claude handle the reasoning
     if (lowerTranscript.includes('emma')) {
       return {
         intent: 'emma_request',
-        confidence: 0.9,
-        response: 'I\'ll connect you to Emma now.',
-        callerName: this.extractName(transcript)
-      };
-    }
-    
-    if (lowerTranscript.includes('sales') || lowerTranscript.includes('buy') || lowerTranscript.includes('price')) {
-      return {
-        intent: 'sales_general',
-        confidence: 0.8,
-        response: 'I need to book you a callback. When would suit you?'
-      };
-    }
-    
-    if (lowerTranscript.includes('support') || lowerTranscript.includes('help') || lowerTranscript.includes('business')) {
-      return {
-        intent: 'business_general',
         confidence: 0.7,
-        response: 'Let me connect you to Michael.'
+        response: this.generateResponse('emma_request'),
+        callerName: this.extractName(transcript)
       };
     }
     
     return {
       intent: 'unclear',
-      confidence: 0.5,
-      response: 'Could you please clarify what you\'re calling about?'
+      confidence: 0.3,
+      response: this.generateResponse('unclear')
     };
   }
 
