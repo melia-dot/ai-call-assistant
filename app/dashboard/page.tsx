@@ -31,31 +31,55 @@ export default function Dashboard() {
 
   // Fetch initial data
   useEffect(() => {
+    console.log('Dashboard: Starting initialization...');
+    
     fetchStats();
     fetchCallLog();
     
     // Set up real-time updates
+    console.log('Dashboard: Setting up SSE connection...');
     const eventSource = new EventSource('/api/05-dashboard/live');
     
+    eventSource.onopen = () => {
+      console.log('Dashboard: SSE connection opened');
+    };
+    
     eventSource.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      
-      if (data.type === 'call_status') {
-        setSystemStatus(data.status);
-        setStatusMessage(data.message);
-      } else if (data.type === 'new_call') {
-        addCallToLog(data.call);
-        fetchStats(); // Refresh stats
+      console.log('Dashboard: SSE message received:', event.data);
+      try {
+        const data = JSON.parse(event.data);
+        
+        if (data.type === 'call_status') {
+          setSystemStatus(data.status);
+          setStatusMessage(data.message);
+        } else if (data.type === 'new_call') {
+          addCallToLog(data.call);
+          fetchStats(); // Refresh stats
+        }
+      } catch (error) {
+        console.error('Dashboard: Error parsing SSE data:', error);
       }
     };
+    
+    eventSource.onerror = (error) => {
+      console.error('Dashboard: SSE error:', error);
+    };
 
-    return () => eventSource.close();
+    return () => {
+      console.log('Dashboard: Closing SSE connection');
+      eventSource.close();
+    };
   }, []);
 
   const fetchStats = async () => {
+    console.log('Dashboard: Fetching stats...');
     try {
       const response = await fetch('/api/05-dashboard/stats');
+      console.log('Dashboard: Stats response status:', response.status);
+      
       const data = await response.json();
+      console.log('Dashboard: Stats data:', data);
+      
       if (data.success) {
         setStats({
           callsToday: data.data.today.total_calls || 0,
@@ -63,16 +87,23 @@ export default function Dashboard() {
           salesInquiries: data.data.today.sales_inquiries || 0,
           filteredCalls: data.data.today.filtered_calls || 0
         });
+      } else {
+        console.error('Dashboard: Stats API returned error:', data.message);
       }
     } catch (error) {
-      console.error('Failed to fetch stats:', error);
+      console.error('Dashboard: Failed to fetch stats:', error);
     }
   };
 
   const fetchCallLog = async () => {
+    console.log('Dashboard: Fetching call log...');
     try {
       const response = await fetch('/api/05-dashboard/calls?limit=10');
+      console.log('Dashboard: Call log response status:', response.status);
+      
       const data = await response.json();
+      console.log('Dashboard: Call log data:', data);
+      
       if (data.success) {
         const formattedCalls = data.data.map((call: any) => ({
           time: new Date(call.timestamp).toLocaleTimeString(),
@@ -83,9 +114,11 @@ export default function Dashboard() {
           success: call.outcome === 'connected' || call.outcome === 'completed'
         }));
         setCallLog(formattedCalls);
+      } else {
+        console.error('Dashboard: Call log API returned error:', data.message);
       }
     } catch (error) {
-      console.error('Failed to fetch call log:', error);
+      console.error('Dashboard: Failed to fetch call log:', error);
     }
   };
 
