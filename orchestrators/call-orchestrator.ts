@@ -1,6 +1,7 @@
 import { ClaudeService } from '../services/claude';
 import { DatabaseService } from '../services/database';
 import { TwilioService } from '../services/twilio';
+import { SmartRoutingService } from '../services/smart-routing';
 import { TwilioPayload } from '../types/twilio';
 import { SSEBroadcaster } from '../services/sse-broadcaster';
 
@@ -82,8 +83,8 @@ export class CallOrchestrator {
       callerName: analysis.callerName
     });
 
-    // Route based on intent
-    return this.routeByIntent(analysis.intent, From, analysis.callerName, CallSid);
+    // Route based on intent using SmartRoutingService
+    return SmartRoutingService.routeByIntent(analysis.intent, CallSid, From, analysis.callerName);
   }
 
   static async handleCallStatus(payload: TwilioPayload): Promise<string> {
@@ -119,65 +120,5 @@ export class CallOrchestrator {
     });
 
     return TwilioService.generateEmptyResponse();
-  }
-
-  private static async routeByIntent(
-    intent: string, 
-    callerNumber: string, 
-    callerName?: string,
-    callSid?: string
-  ): Promise<string> {
-    switch (intent) {
-      case 'emma_request':
-        return this.handleEmmaRequest(callerNumber);
-      
-      case 'sales_general':
-        return this.handleSalesInquiry();
-      
-      case 'business_general':
-        return await this.handleBusinessInquiry(callerNumber, callerName);
-      
-      case 'nonsense':
-        if (callSid) {
-          await DatabaseService.updateCall(callSid, { outcome: 'filtered' });
-        }
-        return TwilioService.hangupCall('Thank you for calling NuVance Labs.');
-      
-      default:
-        return TwilioService.generateSpeechPrompt(
-          'Could you please clarify what you\'re calling about? Are you looking for Emma, Michael, or have a sales inquiry?'
-        );
-    }
-  }
-
-  private static handleEmmaRequest(callerNumber: string): string {
-    const emmaPhone = process.env.EMMA_PHONE!;
-    console.log('🎯 EMMA ROUTING ATTEMPT:');
-    console.log('- Emma phone:', emmaPhone);
-    console.log('- Caller number:', callerNumber);
-    console.log('- Environment check:', {
-      EMMA_PHONE: !!process.env.EMMA_PHONE,
-      MICHAEL_PHONE: !!process.env.MICHAEL_PHONE
-    });
-    
-    if (!emmaPhone) {
-      console.error('❌ EMMA_PHONE not configured in environment');
-      return TwilioService.generateSpeechPrompt('Sorry, Emma is not available right now. Let me connect you to Michael instead.');
-    }
-    
-    console.log('✅ Generating TwiML for Emma routing');
-    return TwilioService.routeCall(emmaPhone, callerNumber);
-  }
-
-  private static handleSalesInquiry(): string {
-    return TwilioService.generateSpeechPrompt(
-      'I need to book you a callback for our sales team. What day and time would work best for you?'
-    );
-  }
-
-  private static async handleBusinessInquiry(callerNumber: string, callerName?: string): Promise<string> {
-    console.log('💼 Business inquiry - routing to Michael');
-    const michaelPhone = process.env.MICHAEL_PHONE!;
-    return TwilioService.routeCall(michaelPhone, callerNumber);
   }
 }

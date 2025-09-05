@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DatabaseService } from '../../../../services/database';
+import { AuthService } from '../../../../services/auth-service';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
-    // TODO: Add authentication check here
+    // Authentication check
+    const authError = await AuthService.requireAuth(req);
+    if (authError) return authError;
     
     const stats = await DatabaseService.getTodayStats();
 
