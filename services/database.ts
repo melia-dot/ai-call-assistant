@@ -82,10 +82,10 @@ export class DatabaseService {
 
       const stats = await sql`
         SELECT 
-          COUNT(*) as total_calls,
-          COUNT(CASE WHEN outcome = 'connected' THEN 1 END) as successful_routes,
-          COUNT(CASE WHEN outcome = 'filtered' THEN 1 END) as filtered_calls,
-          COUNT(CASE WHEN outcome = 'message_taken' THEN 1 END) as messages_taken
+          COUNT(*)::int as total_calls,
+          COUNT(CASE WHEN outcome = 'connected' THEN 1 END)::int as successful_routes,
+          COUNT(CASE WHEN outcome = 'filtered' THEN 1 END)::int as filtered_calls,
+          COUNT(CASE WHEN outcome = 'message_taken' THEN 1 END)::int as messages_taken
         FROM calls 
         WHERE timestamp >= ${today}
       `;
